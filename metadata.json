@@ -1,0 +1,13 @@
+{
+  "name": "Blood Dost",
+  "description": "A collaborative platform linking NGOs, hospitals, and life-saving blood donors in real-time.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "Firebase Authentication",
+    "Firestore Database",
+    "Real-time Blood Requests",
+    "Donor Search"
+  ]
+}
