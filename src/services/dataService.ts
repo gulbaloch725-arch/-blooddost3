@@ -412,7 +412,7 @@ class DataService {
     const newUser: AppUser = {
       id: 'u-' + Math.random().toString(36).substr(2, 5),
       name: `${ngoData.name} Admin`,
-      email: email || `${ngoData.name.toLowerCase().replace(/\s/g, '')}@blooddost.pk`,
+      email: (email ? email.toLowerCase() : `${ngoData.name.toLowerCase().replace(/\s/g, '')}@blooddost.pk`),
       role: UserRole.NGO_ADMIN,
       ngoId: newNGO.id,
       password: password || 'pass123',
@@ -435,7 +435,7 @@ class DataService {
     const newUser: AppUser = {
       id: 'h-' + Math.random().toString(36).substr(2, 5),
       name: hospitalData.name,
-      email: hospitalData.email,
+      email: hospitalData.email.toLowerCase(),
       phone: hospitalData.phone,
       password: hospitalData.password || 'pass123',
       role: UserRole.HOSPITAL,
@@ -689,7 +689,10 @@ class DataService {
   login(identifier: string, password?: string): AppUser | null {
     const users = this.get<AppUser>(STORAGE_KEYS.USERS);
     // Support login via email or phone
-    const user = users.find(u => u.email === identifier || u.phone === identifier);
+    const user = users.find(u => 
+      (u.email && u.email.toLowerCase() === identifier.toLowerCase()) || 
+      (u.phone === identifier)
+    );
     
     if (user) {
       // In this demo, if password is provided, we MUST check it.
