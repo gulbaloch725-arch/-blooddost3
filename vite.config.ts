@@ -15,27 +15,41 @@ export default defineConfig(({mode}) => {
         devOptions: {
           enabled: true
         },
-        includeAssets: ['logo.svg'],
+        includeAssets: ['logo.svg', 'logo.png'],
         manifest: {
+          id: '/?source=pwa',
           name: 'Blood Dost',
           short_name: 'BloodDost',
           description: 'Linking NGOs, hospitals, and life-saving blood donors in real-time.',
           theme_color: '#ef4444',
           background_color: '#ffffff',
           display: 'standalone',
+          orientation: 'portrait',
           scope: '/',
           start_url: '/',
           icons: [
             {
-              src: 'logo.svg',
-              sizes: '192x192 512x512',
-              type: 'image/svg+xml',
+              src: 'logo.png',
+              sizes: '192x192',
+              type: 'image/png',
               purpose: 'any'
             },
             {
-              src: 'logo.svg',
-              sizes: '192x192 512x512',
-              type: 'image/svg+xml',
+              src: 'logo.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any'
+            },
+            {
+              src: 'logo.png',
+              sizes: '192x192',
+              type: 'image/png',
+              purpose: 'maskable'
+            },
+            {
+              src: 'logo.png',
+              sizes: '512x512',
+              type: 'image/png',
               purpose: 'maskable'
             }
           ]
