@@ -33,10 +33,10 @@ const MOCK_NGOS: NGO[] = [
 ];
 
 const MOCK_USERS: AppUser[] = [
-  { id: 'u1', name: ' أحمد علی (Donor)', email: 'donor@test.com', role: UserRole.DONOR, password: 'pass123' },
-  { id: 'u2', name: 'این جی او (NGO Admin)', email: 'ngo@test.com', role: UserRole.NGO_ADMIN, ngoId: 'ngo1', password: 'pass123' },
-  { id: 'h1', name: 'سول ہسپتال (Civil Hospital)', email: 'hospital@test.com', role: UserRole.HOSPITAL, ngoId: 'ngo2', password: 'pass123' },
-  { id: 'admin', name: 'سپر ایڈمن (Super Admin)', email: 'admin@blooddost.pk', role: UserRole.SUPER_ADMIN, password: 'admin123' },
+  { id: 'u1', name: 'أحمد علی (Donor)', email: 'donor@donor.com', role: UserRole.DONOR, password: 'donor123' },
+  { id: 'u2', name: 'این جی او (NGO Admin)', email: 'ngo@ngo.com', role: UserRole.NGO_ADMIN, ngoId: 'ngo1', password: 'ngo123' },
+  { id: 'h1', name: 'سول ہسپتال (Civil Hospital)', email: 'hospital@hospital.com', role: UserRole.HOSPITAL, ngoId: 'ngo2', password: 'hosp123' },
+  { id: 'admin', name: 'سپر ایڈمن (Super Admin)', email: 'admin@admin.com', role: UserRole.SUPER_ADMIN, password: 'admin123' },
 ];
 
 const MOCK_PATIENTS: ThalassemiaPatient[] = [
@@ -190,8 +190,9 @@ class DataService {
 
     // Always check for mock users to avoid stale data issues
     const users = this.get<AppUser>(STORAGE_KEYS.USERS);
-    const hasAdmin = users.some(u => u.email === 'admin@blooddost.pk');
-    if (!hasAdmin) {
+    const hasNewAdmin = users.some(u => u.email === 'admin@admin.com');
+    if (!hasNewAdmin) {
+      // Clear old users and seed fresh mock users if the new admin doesn't exist
       this.set(STORAGE_KEYS.USERS, MOCK_USERS);
     }
 

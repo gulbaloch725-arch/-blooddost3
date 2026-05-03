@@ -17,28 +17,43 @@ export default defineConfig(({mode}) => {
         },
         includeAssets: ['logo.svg'],
         manifest: {
+          id: '/',
           name: 'Blood Dost',
           short_name: 'BloodDost',
           description: 'Linking NGOs, hospitals, and life-saving blood donors in real-time.',
           theme_color: '#ef4444',
           background_color: '#ffffff',
           display: 'standalone',
+          display_override: ['window-controls-overlay', 'standalone'],
           orientation: 'portrait',
           scope: '/',
           start_url: '/',
+          lang: 'en-US',
           categories: ['health', 'medical', 'productivity'],
           icons: [
             {
               src: 'logo.svg',
-              sizes: '192x192 512x512',
+              sizes: 'any',
               type: 'image/svg+xml',
               purpose: 'any'
             },
             {
               src: 'logo.svg',
-              sizes: '192x192 512x512',
+              sizes: 'any',
               type: 'image/svg+xml',
               purpose: 'maskable'
+            }
+          ],
+          shortcuts: [
+            {
+              name: 'Request Blood',
+              url: '/request',
+              icons: [{ src: 'logo.svg', sizes: 'any' }]
+            },
+            {
+              name: 'Find Donors',
+              url: '/donors',
+              icons: [{ src: 'logo.svg', sizes: 'any' }]
             }
           ]
         },

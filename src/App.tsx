@@ -129,8 +129,8 @@ export default function App() {
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'nearlyEligible' | 'notAvailable'>('all');
   const [cityFilter, setCityFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState<'NGO' | 'Hospital'>('NGO');
-  const [authEmail, setAuthEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [authEmail, setAuthEmail] = useState('admin@admin.com');
+  const [password, setPassword] = useState('admin123');
   const [language, setLanguage] = useState<Language>('en');
   const [notifications, setNotifications] = useState<{ id: string; message: string; type: 'success' | 'error' | 'info' }[]>([]);
   const [isOnline, setIsOnline] = useState(window.navigator.onLine);
