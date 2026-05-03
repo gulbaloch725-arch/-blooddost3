@@ -18,8 +18,8 @@ export default defineConfig(({mode}) => {
         includeAssets: ['logo.svg'],
         manifest: {
           id: '/',
-          name: 'Blood Dost',
-          short_name: 'BloodDost',
+          name: 'Blood Dost - Blood Donation Platform',
+          short_name: 'Blood Dost',
           description: 'Linking NGOs, hospitals, and life-saving blood donors in real-time.',
           theme_color: '#ef4444',
           background_color: '#ffffff',
@@ -33,15 +33,31 @@ export default defineConfig(({mode}) => {
           icons: [
             {
               src: 'logo.svg',
-              sizes: 'any',
+              sizes: '72x72 96x96 128x128 144x144 152x152 192x192 384x384 512x512',
               type: 'image/svg+xml',
               purpose: 'any'
             },
             {
               src: 'logo.svg',
-              sizes: 'any',
+              sizes: '72x72 96x96 128x128 144x144 152x152 192x192 384x384 512x512',
               type: 'image/svg+xml',
               purpose: 'maskable'
+            }
+          ],
+          screenshots: [
+            {
+              src: 'logo.svg',
+              sizes: '512x512',
+              type: 'image/svg+xml',
+              form_factor: 'wide',
+              label: 'Blood Dost Application'
+            },
+            {
+              src: 'logo.svg',
+              sizes: '512x512',
+              type: 'image/svg+xml',
+              form_factor: 'narrow',
+              label: 'Blood Dost Application'
             }
           ],
           shortcuts: [
