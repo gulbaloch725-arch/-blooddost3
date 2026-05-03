@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Red Blood Drop -->
+  <path d="M256 42C160 160 96 240 96 320c0 88.4 71.6 160 160 160s160-71.6 160-160c0-80-64-160-160-278z" fill="#ef4444"/>
+  
+  <!-- White Hands -->
+  <path d="M160 380c-20 0-40-10-40-30s20-30 40-30 40 10 40 30-20 30-40 30zm192 0c-20 0-40-10-40-30s20-30 40-30 40 10 40 30-20 30-40 30z" fill="white" opacity="0.3"/>
+  <path d="M120 340c-20 0-40 20-40 40s20 60 80 80h192c60-20 80-60 80-80s-20-40-40-40h-20c-10 0-20 10-20 20s10 20 20 20h10c10 0 10 10 0 20-20 10-40 20-80 20h-96c-40 0-60-10-80-20-10-10-10-20 0-20h10c10-10 20-20 10-20h-30z" fill="white"/>
+  
+  <!-- Heartbeat Line -->
+  <path d="M180 300h40l20-40 20 80 20-60 20 20h32" fill="none" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
