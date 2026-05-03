@@ -10,6 +10,7 @@ export interface AppUser {
   name: string;
   email: string;
   phone?: string;
+  password?: string;
   role: UserRole;
   ngoId?: string;
   avatar?: string;

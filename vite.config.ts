@@ -15,7 +15,7 @@ export default defineConfig(({mode}) => {
         devOptions: {
           enabled: true
         },
-        includeAssets: ['icon.svg'],
+        includeAssets: ['logo.png'],
         manifest: {
           name: 'Blood Dost',
           short_name: 'BloodDost',
@@ -27,15 +27,15 @@ export default defineConfig(({mode}) => {
           start_url: '/',
           icons: [
             {
-              src: 'icon.svg',
-              sizes: '192x192 512x512',
-              type: 'image/svg+xml',
+              src: 'logo.png',
+              sizes: '512x512',
+              type: 'image/png',
               purpose: 'any'
             },
             {
-              src: 'icon.svg',
-              sizes: '192x192 512x512',
-              type: 'image/svg+xml',
+              src: 'logo.png',
+              sizes: '512x512',
+              type: 'image/png',
               purpose: 'maskable'
             }
           ]

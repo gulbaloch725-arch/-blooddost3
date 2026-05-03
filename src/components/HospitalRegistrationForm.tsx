@@ -5,7 +5,7 @@ import { LocationSelector } from './LocationSelector';
 
 interface HospitalRegistrationFormProps {
   onClose: () => void;
-  onSave: (hospital: { name: string; email: string; phone: string; address: string; city: string }) => void;
+  onSave: (hospital: { name: string; email: string; phone: string; address: string; city: string; password?: string }) => void;
   language: Language;
 }
 
@@ -14,6 +14,7 @@ export const HospitalRegistrationForm: React.FC<HospitalRegistrationFormProps> =
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    password: '',
     province: '',
     district: '',
     city: '',
@@ -30,6 +31,7 @@ export const HospitalRegistrationForm: React.FC<HospitalRegistrationFormProps> =
     onSave({
       name: formData.name,
       email: formData.email,
+      password: formData.password,
       address: `${formData.address}, ${formData.city}, ${formData.district}, ${formData.province}`,
       phone: formData.phone,
       city: formData.city
@@ -80,6 +82,21 @@ export const HospitalRegistrationForm: React.FC<HospitalRegistrationFormProps> =
               onChange={e => setFormData({...formData, email: e.target.value})}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-600/20 outline-none font-bold"
               placeholder="info@hospital.com"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-xs font-bold text-slate-400 uppercase">Create Password</label>
+              <span className="urdu text-[10px] text-slate-400">پاس ورڈ بنائیں</span>
+            </div>
+            <input 
+              required
+              type="password"
+              value={formData.password}
+              onChange={e => setFormData({...formData, password: e.target.value})}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-600/20 outline-none font-bold"
+              placeholder="••••••••"
             />
           </div>
 

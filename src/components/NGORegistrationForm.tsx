@@ -15,6 +15,7 @@ export const NGORegistrationForm: React.FC<NGORegistrationFormProps> = ({ onClos
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    password: '',
     province: '',
     district: '',
     city: '',
@@ -31,6 +32,7 @@ export const NGORegistrationForm: React.FC<NGORegistrationFormProps> = ({ onClos
     onSave({
       name: formData.name,
       email: formData.email,
+      password: formData.password,
       address: `${formData.address}, ${formData.city}, ${formData.district}, ${formData.province}`,
       phone: formData.phone,
       district: formData.district,
@@ -82,6 +84,21 @@ export const NGORegistrationForm: React.FC<NGORegistrationFormProps> = ({ onClos
               onChange={e => setFormData({...formData, email: e.target.value})}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-slate-900/20 outline-none font-bold"
               placeholder="ngo@example.com"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-xs font-bold text-slate-400 uppercase">Create Password</label>
+              <span className="urdu text-[10px] text-slate-400">پاس ورڈ بنائیں</span>
+            </div>
+            <input 
+              required
+              type="password"
+              value={formData.password}
+              onChange={e => setFormData({...formData, password: e.target.value})}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-slate-900/20 outline-none font-bold"
+              placeholder="••••••••"
             />
           </div>
 

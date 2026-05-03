@@ -215,43 +215,13 @@ export default function App() {
     const identifier = targetIdentifier.trim().toLowerCase();
     const pass = targetPass.trim();
 
-    // Default passwords for demo
-    const credentialsMap: Record<string, string> = {
-      'admin@blooddost.pk': 'admin123',
-      'ngo@test.com': 'pass123',
-      'donor@test.com': 'pass123',
-      'hospital@test.com': 'pass123'
-    };
-
-    // Check if it's a seeded user or existing user
-    const users = dataService.getUsers();
-    const seededUser = users.find(u => u.email === identifier || u.phone === identifier);
-
-    // If it's a known identifier but not in map, allow with 'pass123' or '12345678' for seeded/new users
-    const isValid = credentialsMap[identifier] === pass || (seededUser && (pass === 'pass123' || pass === '12345678'));
-
-    if (isValid) {
-      const loggedInUser = dataService.login(identifier);
-      if (loggedInUser) {
-        setUser(loggedInUser);
-        refreshData(loggedInUser);
-      } else {
-        // Fallback for manually entered but valid demo identifiers
-        const fallbackUser: AppUser = {
-          id: 'temp-' + Math.random().toString(36).substr(2, 5),
-          name: identifier.split('@')[0].toUpperCase(),
-          email: identifier.includes('@') ? identifier : `${identifier}@test.com`,
-          phone: identifier.includes('@') ? undefined : identifier,
-          role: identifier.includes('admin') ? UserRole.SUPER_ADMIN : 
-                identifier.includes('ngo') ? UserRole.NGO_ADMIN :
-                identifier.includes('hospital') ? UserRole.HOSPITAL : UserRole.DONOR,
-          ngoId: identifier.includes('ngo') ? 'ngo-karachi-1' : undefined
-        };
-        setUser(fallbackUser);
-        refreshData(fallbackUser);
-      }
+    const loggedInUser = dataService.login(identifier, pass);
+    
+    if (loggedInUser) {
+      setUser(loggedInUser);
+      refreshData(loggedInUser);
     } else {
-      alert(`Invalid Credentials!\n\nDefault Accounts (Pass: pass123):\n- ngo@test.com\n- hospital@test.com\n- donor@test.com\n\nAdmin Account (Pass: admin123):\n- admin@blooddost.pk`);
+      alert(language === 'ur' ? 'غلط ای میل یا پاس ورڈ!' : 'Invalid Credentials!');
     }
   };
 

@@ -33,10 +33,10 @@ const MOCK_NGOS: NGO[] = [
 ];
 
 const MOCK_USERS: AppUser[] = [
-  { id: 'u1', name: ' أحمد علی (Donor)', email: 'donor@test.com', role: UserRole.DONOR },
-  { id: 'u2', name: 'این جی او (NGO Admin)', email: 'ngo@test.com', role: UserRole.NGO_ADMIN, ngoId: 'ngo1' },
-  { id: 'h1', name: 'سول ہسپتال (Civil Hospital)', email: 'hospital@test.com', role: UserRole.HOSPITAL, ngoId: 'ngo2' },
-  { id: 'admin', name: 'سپر ایڈمن (Super Admin)', email: 'admin@blooddost.pk', role: UserRole.SUPER_ADMIN },
+  { id: 'u1', name: ' أحمد علی (Donor)', email: 'donor@test.com', role: UserRole.DONOR, password: 'pass123' },
+  { id: 'u2', name: 'این جی او (NGO Admin)', email: 'ngo@test.com', role: UserRole.NGO_ADMIN, ngoId: 'ngo1', password: 'pass123' },
+  { id: 'h1', name: 'سول ہسپتال (Civil Hospital)', email: 'hospital@test.com', role: UserRole.HOSPITAL, ngoId: 'ngo2', password: 'pass123' },
+  { id: 'admin', name: 'سپر ایڈمن (Super Admin)', email: 'admin@blooddost.pk', role: UserRole.SUPER_ADMIN, password: 'admin123' },
 ];
 
 const MOCK_PATIENTS: ThalassemiaPatient[] = [
@@ -397,8 +397,8 @@ class DataService {
     return this.get<UserSubscription>(STORAGE_KEYS.SUBSCRIPTIONS);
   }
 
-  addNGO(ngoData: Omit<NGO, 'id'> & { email?: string }): NGO {
-    const { email, ...rest } = ngoData;
+  addNGO(ngoData: Omit<NGO, 'id'> & { email?: string; password?: string }): NGO {
+    const { email, password, ...rest } = ngoData;
     const newNGO: NGO = {
       ...rest,
       id: 'ngo-' + Math.random().toString(36).substr(2, 5),
@@ -415,7 +415,8 @@ class DataService {
       email: email || `${ngoData.name.toLowerCase().replace(/\s/g, '')}@blooddost.pk`,
       role: UserRole.NGO_ADMIN,
       ngoId: newNGO.id,
-      needsPasswordReset: true
+      password: password || 'pass123',
+      needsPasswordReset: !password
     };
     const users = this.get<AppUser>(STORAGE_KEYS.USERS);
     this.set(STORAGE_KEYS.USERS, [newUser, ...users]);
@@ -430,14 +431,15 @@ class DataService {
     return newNGO;
   }
 
-  addHospital(hospitalData: { name: string, email: string, phone: string, address: string, city: string }): AppUser {
+  addHospital(hospitalData: { name: string, email: string, phone: string, address: string, city: string, password?: string }): AppUser {
     const newUser: AppUser = {
       id: 'h-' + Math.random().toString(36).substr(2, 5),
       name: hospitalData.name,
       email: hospitalData.email,
       phone: hospitalData.phone,
+      password: hospitalData.password || 'pass123',
       role: UserRole.HOSPITAL,
-      needsPasswordReset: true
+      needsPasswordReset: !hospitalData.password
     };
     const users = this.get<AppUser>(STORAGE_KEYS.USERS);
     this.set(STORAGE_KEYS.USERS, [newUser, ...users]);
@@ -684,11 +686,17 @@ class DataService {
     return newItem;
   }
 
-  login(identifier: string): AppUser | null {
+  login(identifier: string, password?: string): AppUser | null {
     const users = this.get<AppUser>(STORAGE_KEYS.USERS);
     // Support login via email or phone
     const user = users.find(u => u.email === identifier || u.phone === identifier);
+    
     if (user) {
+      // In this demo, if password is provided, we MUST check it.
+      // If no password is provided but user HAS a password, we should probably fail unless it's a legacy call
+      if (password && user.password && user.password !== password) {
+        return null;
+      }
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
       return user;
     }
