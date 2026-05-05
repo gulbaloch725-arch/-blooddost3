@@ -129,8 +129,8 @@ export default function App() {
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'nearlyEligible' | 'notAvailable'>('all');
   const [cityFilter, setCityFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState<'NGO' | 'Hospital'>('NGO');
-  const [authEmail, setAuthEmail] = useState('admin@admin.com');
-  const [password, setPassword] = useState('admin123');
+  const [authEmail, setAuthEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [language, setLanguage] = useState<Language>('en');
   const [notifications, setNotifications] = useState<{ id: string; message: string; type: 'success' | 'error' | 'info' }[]>([]);
   const [isOnline, setIsOnline] = useState(window.navigator.onLine);
@@ -200,12 +200,12 @@ export default function App() {
     
     if (activeUser.ngoId) {
       setInventory(dataService.getInventory(activeUser.ngoId));
-      setThalassemiaPatients(dataService.getPatients(activeUser.ngoId));
+      setThalassemiaPatients(dataService.getPatients(activeUser));
     }
 
     if (activeUser.role === UserRole.NGO_ADMIN) {
-      const subs = dataService.getSubscriptions();
-      setSubscription(subs.find(s => s.userId === activeUser.id) || null);
+      const subs = dataService.getSubscriptions(activeUser);
+      setSubscription(subs[0] || null);
     }
   };
 

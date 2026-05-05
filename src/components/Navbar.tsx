@@ -8,6 +8,7 @@ import { AppUser, UserRole, UserSubscription } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { Language, translations } from '../translations';
 import { dataService } from '../services/dataService';
+import { NotificationCenter } from './NotificationCenter';
 
 interface NavbarProps {
   user: AppUser | null;
@@ -100,6 +101,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {user && (
               <div className="flex items-center gap-4">
+                <NotificationCenter user={user} language={language} />
                 <div className="hidden sm:flex flex-col items-end mr-2">
                   <span className="text-sm font-bold text-slate-900">{user.name}</span>
                   <span className="text-[10px] font-black uppercase tracking-widest text-brand-red">{user.role}</span>

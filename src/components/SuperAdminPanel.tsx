@@ -3,9 +3,10 @@ import {
   Check, X, Shield, FileText, ExternalLink, Building2, 
   CreditCard, Activity, Users, Settings, MapPin, Globe, 
   Plus, Trash2, ChevronRight, Search, Download, Database,
-  SearchX, Phone, Droplet, Heart, AlertTriangle
+  SearchX, Phone, Droplet, Heart, AlertTriangle, Megaphone,
+  Bell, Pin, Clock, Calendar
 } from 'lucide-react';
-import { UserSubscription, UserRole, NGO, DonorProfile, InventoryItem, ThalassemiaPatient } from '../types';
+import { UserSubscription, UserRole, NGO, DonorProfile, InventoryItem, ThalassemiaPatient, NotificationType, NotificationAudience, AppNotification, HealthCheckResult } from '../types';
 import { dataService } from '../services/dataService';
 import { motion, AnimatePresence } from 'motion/react';
 import { Language, translations } from '../translations';
@@ -27,7 +28,25 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ language, onSh
   const [selectedNgoForEdit, setSelectedNgoForEdit] = useState<NGO | null>(null);
   const [summary, setSummary] = useState<any>(null);
   const [filters, setFilters] = useState({ city: '', ngo: '' });
-  const [activeTab, setActiveTab] = useState<'ngos' | 'payments' | 'locations' | 'monitor'>('monitor');
+  const [activeTab, setActiveTab] = useState<'ngos' | 'payments' | 'locations' | 'monitor' | 'settings' | 'notifications' | 'health'>('monitor');
+  const [healthCheck, setHealthCheck] = useState<HealthCheckResult | null>(null);
+  const [isRunningHC, setIsRunningHC] = useState(false);
+
+  // Admin Settings State
+  const [adminEmail, setAdminEmail] = useState('');
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Notification State
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifMessage, setNotifMessage] = useState('');
+  const [notifType, setNotifType] = useState<NotificationType>(NotificationType.GENERAL);
+  const [notifAudience, setNotifAudience] = useState<NotificationAudience>(NotificationAudience.ALL);
+  const [notifTarget, setNotifTarget] = useState('');
+  const [notifPinned, setNotifPinned] = useState(false);
+  const [notifScheduled, setNotifScheduled] = useState('');
 
   // Monitor State
   const [monitorCity, setMonitorCity] = useState('');
@@ -66,14 +85,60 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ language, onSh
       const allNgos = dataService.getNGOs();
       const summaryData = dataService.getNGOSummary();
       const locationData = dataService.getLocationData();
+      const notifs = dataService.getNotifications();
 
       setSubscriptions([...subs]);
       setNgos([...allNgos]);
       setSummary({ ...summaryData });
       setLocations([...locationData]);
+      setNotifications([...notifs]);
     } catch (error) {
       console.error('Failed to refresh data:', error);
     }
+  };
+
+  const handleSendNotification = (e: React.FormEvent) => {
+    e.preventDefault();
+    const admin = dataService.getCurrentUser();
+    if (!admin) return;
+
+    if (!notifTitle || !notifMessage) {
+      onShowNotification?.('Title and message are required', 'error');
+      return;
+    }
+
+    try {
+      dataService.createNotification({
+        title: notifTitle,
+        message: notifMessage,
+        type: notifType,
+        audience: notifAudience,
+        targetValue: notifAudience === NotificationAudience.CITY || notifAudience === NotificationAudience.BLOOD_GROUP ? notifTarget : undefined,
+        isPinned: notifPinned,
+        scheduledFor: notifScheduled || undefined,
+        authorId: admin.id
+      });
+
+      onShowNotification?.('Announcement sent successfully', 'success');
+      setNotifTitle('');
+      setNotifMessage('');
+      setNotifScheduled('');
+      setNotifPinned(false);
+      refresh();
+    } catch (error) {
+      onShowNotification?.('Failed to send announcement', 'error');
+    }
+  };
+
+  const handleDeleteNotification = (id: string) => {
+    dataService.deleteNotification(id);
+    onShowNotification?.('Announcement deleted', 'info');
+    refresh();
+  };
+
+  const handleTogglePinNotification = (id: string, current: boolean) => {
+    dataService.updateNotification(id, { isPinned: !current });
+    refresh();
   };
 
   const handleAddProvince = () => {
@@ -129,6 +194,28 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ language, onSh
     setLocations(updated);
     setNewItemName('');
   };
+
+  const handleRunHealthCheck = async () => {
+    setIsRunningHC(true);
+    try {
+      const result = await dataService.runNotificationHealthCheck();
+      setHealthCheck(result);
+      if (result.status === 'failed') {
+        onShowNotification?.('System Verification Failed: Critical issues detected', 'error');
+      } else {
+        onShowNotification?.('System Health Check: All systems operational', 'success');
+      }
+    } catch (error) {
+      onShowNotification?.('Health check failed to execute', 'error');
+    } finally {
+      setIsRunningHC(false);
+    }
+  };
+
+  useEffect(() => {
+    // Auto-run health check on Super Admin load
+    handleRunHealthCheck();
+  }, []);
 
   const handleRemoveProvince = (name: string) => {
     const updated = locations.filter(p => p.name !== name);
@@ -234,6 +321,48 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ language, onSh
     }
   };
 
+  const handleUpdateAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const current = dataService.getCurrentUser();
+    if (!current) return;
+
+    if (!adminEmail.trim()) {
+      onShowNotification?.('Email is required', 'error');
+      return;
+    }
+
+    if (newPassword) {
+      if (newPassword.length < 8) {
+        onShowNotification?.('New password must be at least 8 characters', 'error');
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        onShowNotification?.('Passwords do not match', 'error');
+        return;
+      }
+      if (!oldPassword) {
+        onShowNotification?.('Old password is required to change password', 'error');
+        return;
+      }
+      
+      const isCorrect = dataService.verifyPassword(current.id, oldPassword);
+      if (!isCorrect) {
+        onShowNotification?.('Incorrect old password', 'error');
+        return;
+      }
+    }
+
+    try {
+      dataService.updateAdminCredentials(adminEmail, newPassword || undefined);
+      onShowNotification?.('Admin credentials updated successfully', 'success');
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      onShowNotification?.('Failed to update credentials', 'error');
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -321,7 +450,57 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ language, onSh
           <MapPin className="w-5 h-5" />
           Location Hierarchy
         </button>
+        <button 
+          onClick={() => setActiveTab('notifications')}
+          className={`px-8 py-4 rounded-2xl text-sm font-black transition-all flex items-center gap-3 whitespace-nowrap ${activeTab === 'notifications' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
+        >
+          <Megaphone className="w-5 h-5" />
+          {t.announcements}
+        </button>
+        <button 
+          onClick={() => {
+            setActiveTab('settings');
+            const current = dataService.getCurrentUser();
+            if (current) setAdminEmail(current.email || '');
+          }}
+          className={`px-8 py-4 rounded-2xl text-sm font-black transition-all flex items-center gap-3 whitespace-nowrap ${activeTab === 'settings' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
+        >
+          <Settings className="w-5 h-5" />
+          {t.adminSettings}
+        </button>
+        <button 
+          onClick={() => setActiveTab('health')}
+          className={`px-8 py-4 rounded-2xl text-sm font-black transition-all flex items-center gap-3 whitespace-nowrap ${activeTab === 'health' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
+        >
+          <Activity className={`w-5 h-5 ${healthCheck?.status === 'failed' ? 'text-brand-red animate-pulse' : ''}`} />
+          {t.systemHealth}
+        </button>
       </div>
+
+      {healthCheck?.status === 'failed' && (
+        <div className="bg-red-50 border-l-4 border-brand-red p-4 rounded-r-2xl flex items-center justify-between shadow-sm animate-bounce">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-6 h-6 text-brand-red" />
+            <div>
+              <p className="font-black text-slate-900 uppercase text-xs tracking-widest">{t.verificationRequired}</p>
+              <p className="text-sm text-slate-600">{t.systemNotVerified}</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => setActiveTab('health')}
+            className="bg-brand-red text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
+          >
+            {t.fixNow}
+          </button>
+        </div>
+      )}
+
+      {healthCheck?.status === 'passed' && (
+        <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-r-2xl flex items-center gap-3 shadow-sm">
+          <Check className="w-5 h-5 text-green-500" />
+          <p className="text-sm font-bold text-green-700">{t.fullyFunctional}: All internal checks passed at {new Date(healthCheck.timestamp).toLocaleTimeString()}</p>
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         {activeTab === 'monitor' && (
@@ -946,6 +1125,426 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ language, onSh
               </div>
             </motion.div>
           </div>
+        )}
+        {activeTab === 'notifications' && (
+          <motion.div 
+            key="notifications"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="space-y-8"
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Creator Form */}
+              <div className="lg:col-span-1 space-y-6">
+                <div className="bg-white rounded-[40px] border border-slate-100 shadow-xl overflow-hidden">
+                  <div className="bg-slate-900 p-6 text-white flex items-center gap-3">
+                    <Plus className="w-5 h-5 text-brand-red" />
+                    <h3 className="font-black text-lg tracking-tight">{t.newNotification}</h3>
+                  </div>
+                  <form onSubmit={handleSendNotification} className="p-6 space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.title}</label>
+                      <input 
+                        type="text"
+                        value={notifTitle}
+                        onChange={(e) => setNotifTitle(e.target.value)}
+                        placeholder="e.g. System Maintenance"
+                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-slate-900/5 transition-all"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.message}</label>
+                      <textarea 
+                        value={notifMessage}
+                        onChange={(e) => setNotifMessage(e.target.value)}
+                        placeholder="Write your announcement here..."
+                        rows={4}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-slate-900/5 transition-all resize-none"
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.type}</label>
+                        <select 
+                          value={notifType}
+                          onChange={(e) => setNotifType(e.target.value as NotificationType)}
+                          className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-3 py-3 text-xs font-bold focus:outline-none"
+                        >
+                          {Object.values(NotificationType).map(type => (
+                            <option key={type} value={type}>{type}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.audience}</label>
+                        <select 
+                          value={notifAudience}
+                          onChange={(e) => setNotifAudience(e.target.value as NotificationAudience)}
+                          className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-3 py-3 text-xs font-bold focus:outline-none"
+                        >
+                          <option value={NotificationAudience.ALL}>{t.allUsers}</option>
+                          <option value={NotificationAudience.DONORS}>{t.donorsOnly}</option>
+                          <option value={NotificationAudience.NGOS}>{t.ngosOnly}</option>
+                          <option value={NotificationAudience.CITY}>{t.specificCity}</option>
+                          <option value={NotificationAudience.BLOOD_GROUP}>{t.specificBloodGroup}</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {(notifAudience === NotificationAudience.CITY || notifAudience === NotificationAudience.BLOOD_GROUP) && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          {notifAudience === NotificationAudience.CITY ? 'Enter City' : 'Select Blood Group'}
+                        </label>
+                        {notifAudience === NotificationAudience.CITY ? (
+                          <input 
+                            type="text"
+                            value={notifTarget}
+                            onChange={(e) => setNotifTarget(e.target.value)}
+                            placeholder="e.g. Sibi"
+                            className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none"
+                          />
+                        ) : (
+                          <select 
+                            value={notifTarget}
+                            onChange={(e) => setNotifTarget(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none"
+                          >
+                            <option value="">Select Group</option>
+                            {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
+                              <option key={bg} value={bg}>{bg}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex flex-col gap-4 py-2">
+                      <label className="flex items-center gap-3 cursor-pointer group">
+                        <input 
+                          type="checkbox" 
+                          checked={notifPinned}
+                          onChange={(e) => setNotifPinned(e.target.checked)}
+                          className="w-5 h-5 rounded-lg border-2 border-slate-300 text-brand-red focus:ring-brand-red cursor-pointer"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Pin className={`w-4 h-4 ${notifPinned ? 'text-brand-red' : 'text-slate-400'}`} />
+                          <span className="text-xs font-black text-slate-600 uppercase tracking-widest">{t.pinned}</span>
+                        </div>
+                      </label>
+                      
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                          <Clock className="w-3 h-3" />
+                          {t.scheduled} (Optional)
+                        </label>
+                        <input 
+                          type="datetime-local"
+                          value={notifScheduled}
+                          onChange={(e) => setNotifScheduled(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-xs font-bold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <button 
+                      type="submit"
+                      className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-black transition-all shadow-xl flex items-center justify-center gap-3"
+                    >
+                      <Bell className="w-5 h-5" />
+                      {t.sendAnnouncement}
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              {/* History List */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="bg-white rounded-[40px] border border-slate-100 shadow-xl overflow-hidden min-h-[600px]">
+                  <div className="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <Megaphone className="w-5 h-5 text-brand-red" />
+                      <h3 className="font-black text-slate-900 uppercase tracking-tight">{t.announcements} History</h3>
+                    </div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase bg-white px-3 py-1 rounded-full border border-slate-100">
+                      {notifications.length} Sent
+                    </div>
+                  </div>
+                  
+                  <div className="divide-y divide-slate-50">
+                    {notifications.length === 0 ? (
+                      <div className="p-20 text-center space-y-4">
+                        <Bell className="w-16 h-16 text-slate-100 mx-auto" />
+                        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No announcements yet</p>
+                      </div>
+                    ) : (
+                      notifications.map(notif => (
+                        <div key={notif.id} className="p-6 hover:bg-slate-50 transition-colors group">
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-3">
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
+                                  notif.type === NotificationType.EMERGENCY ? 'bg-red-100 text-red-600' :
+                                  notif.type === NotificationType.MAINTENANCE ? 'bg-amber-100 text-amber-600' :
+                                  'bg-blue-100 text-blue-600'
+                                }`}>
+                                  {notif.type}
+                                </span>
+                                {notif.isPinned && (
+                                  <span className="flex items-center gap-1 text-[10px] font-black text-brand-red uppercase">
+                                    <Pin className="w-3 h-3 fill-brand-red" />
+                                    Pinned
+                                  </span>
+                                )}
+                                {notif.scheduledFor && new Date(notif.scheduledFor) > new Date() && (
+                                  <span className="flex items-center gap-1 text-[10px] font-black text-amber-500 uppercase">
+                                    <Clock className="w-3 h-3" />
+                                    Scheduled: {new Date(notif.scheduledFor).toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="text-lg font-black text-slate-900 tracking-tight">{notif.title}</h4>
+                              <p className="text-sm text-slate-600 leading-relaxed max-w-2xl">{notif.message}</p>
+                              <div className="flex items-center gap-6 pt-2">
+                                <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                  <Users className="w-3 h-3" />
+                                  Target: {notif.audience} {notif.targetValue ? `(${notif.targetValue})` : ''}
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                  <Calendar className="w-3 h-3" />
+                                  Sent: {new Date(notif.createdAt).toLocaleDateString()}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => handleTogglePinNotification(notif.id, !!notif.isPinned)}
+                                className={`p-2 rounded-xl transition-all ${notif.isPinned ? 'bg-brand-red text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                title={notif.isPinned ? 'Unpin' : 'Pin to Top'}
+                              >
+                                <Pin className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteNotification(notif.id)}
+                                className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                                title={t.deleteNotification}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+        {activeTab === 'settings' && (
+          <motion.div 
+            key="settings"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="max-w-2xl mx-auto"
+          >
+            <div className="bg-white rounded-[40px] border border-slate-100 shadow-xl overflow-hidden">
+              <div className="bg-slate-900 p-8 text-white">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center">
+                    <Settings className="w-6 h-6 text-brand-red" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black tracking-tight">{t.adminSettings}</h3>
+                    <p className="text-slate-400 text-sm">Update your system credentials securely</p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdateAdmin} className="p-8 space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t.username}</label>
+                  <input 
+                    type="email"
+                    value={adminEmail}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    placeholder="admin@example.com"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:bg-white transition-all"
+                    required
+                  />
+                </div>
+
+                <div className="pt-4 border-t border-slate-50">
+                  <h4 className="text-sm font-black text-slate-900 mb-4 px-1 flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-brand-red" />
+                    {t.changePassword}
+                  </h4>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t.currentPasswordRequired}</label>
+                      <input 
+                        type="password"
+                        value={oldPassword}
+                        onChange={(e) => setOldPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:bg-white transition-all"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t.newPasswordChars}</label>
+                        <input 
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:bg-white transition-all"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t.confirmNewPassword}</label>
+                        <input 
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:bg-white transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-4">
+                   <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                   <p className={`text-xs text-amber-700 font-medium leading-relaxed ${language === 'ur' ? 'urdu' : ''}`}>
+                     {t.credentialWarning}
+                   </p>
+                </div>
+
+                <div className="flex justify-end pt-4">
+                  <button 
+                    type="submit"
+                    className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-black transition-all shadow-xl active:scale-95"
+                  >
+                    {t.saveSecretSettings}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'health' && (
+          <motion.div 
+            key="health"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="space-y-8"
+          >
+            <div className="bg-white rounded-[40px] border border-slate-100 shadow-xl overflow-hidden">
+              <div className="bg-slate-900 p-8 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center">
+                    <Activity className={`w-6 h-6 ${healthCheck?.status === 'failed' ? 'text-brand-red' : 'text-green-500'}`} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black tracking-tight">{t.integrityVerification}</h3>
+                    <p className="text-slate-400 text-sm">Automated health check running for Notification & Isolation modules</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleRunHealthCheck}
+                  disabled={isRunningHC}
+                  className={`px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl flex items-center gap-3 ${
+                    isRunningHC ? 'bg-slate-800 text-slate-500' : 'bg-brand-red text-white hover:bg-brand-red-dark'
+                  }`}
+                >
+                  <Clock className={`w-5 h-5 ${isRunningHC ? 'animate-spin' : ''}`} />
+                  {isRunningHC ? t.verifying : t.runFullCheck}
+                </button>
+              </div>
+
+              <div className="p-8 space-y-6">
+                {!healthCheck ? (
+                  <div className="p-20 text-center space-y-4">
+                    <Activity className="w-16 h-16 text-slate-100 mx-auto" />
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Run verification to see system status</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest px-1">{t.verificationLogs}</h4>
+                      <div className="space-y-3">
+                        {healthCheck.details.map((detail, idx) => (
+                          <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              {detail.result === 'passed' ? (
+                                <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center">
+                                  <Check className="w-4 h-4 text-green-600" />
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center">
+                                  <AlertTriangle className="w-4 h-4 text-brand-red" />
+                                </div>
+                              )}
+                              <span className="text-sm font-bold text-slate-700">{detail.test}</span>
+                            </div>
+                            {detail.errorMessage && (
+                                <span className="text-[10px] bg-red-100 text-brand-red px-2 py-0.5 rounded-full font-black">
+                                  Error: {detail.errorMessage}
+                                </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className={`p-8 rounded-[32px] border pb-8 ${healthCheck.status === 'passed' ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                        <div className="flex items-center gap-3 mb-4">
+                           {healthCheck.status === 'passed' ? (
+                             <Shield className="w-8 h-8 text-green-500" />
+                           ) : (
+                             <AlertTriangle className="w-8 h-8 text-brand-red" />
+                           )}
+                           <h4 className="text-lg font-black text-slate-900 uppercase">Status: {healthCheck.status.toUpperCase()}</h4>
+                        </div>
+                        <p className="text-sm text-slate-600 font-medium leading-relaxed mb-6">
+                          {healthCheck.status === 'passed' 
+                            ? "All modules are operating within safe parameters. Role isolation and data encryption (local) are verified. Notification system is fully functional."
+                            : "Critical vulnerabilities or logic leaks detected. Check logs to identify which module requires immediate attention."}
+                        </p>
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          Last Verified: {new Date(healthCheck.timestamp).toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-200">
+                        <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-4">{t.systemRecommendations}</h4>
+                        <ul className="space-y-2">
+                          <li className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                            Perform manual verification of NGO B accounts.
+                          </li>
+                          <li className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                            Clear browser cache if CRUD tests fail.
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
