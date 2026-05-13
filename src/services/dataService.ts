@@ -190,16 +190,25 @@ class DataService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${this.apiBase}${endpoint}`, {
-      ...options,
-      credentials: 'include',
-      headers,
-    });
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(error.error || 'API request failed');
+    try {
+      const res = await fetch(`${this.apiBase}${endpoint}`, {
+        ...options,
+        credentials: 'include',
+        headers,
+      });
+      
+      console.log(`[DataService] ${options.method || 'GET'} ${endpoint} -> ${res.status}`);
+      
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.error(`[DataService] Error ${endpoint}:`, error);
+        throw new Error(error.error || 'API request failed');
+      }
+      return res.json();
+    } catch (error) {
+      console.error(`[DataService] Fetch error ${endpoint}:`, error);
+      throw error;
     }
-    return res.json();
   }
 
   private get<T>(key: string): T[] {
@@ -801,10 +810,16 @@ class DataService {
       });
       
       const { token, ...user } = response;
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
-      await this.syncWithServer();
-      return user;
+      if (token) {
+        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+      }
+      if (user && (user as any).id) {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+        // Try to sync, but proceed even if it fails partially
+        await this.syncWithServer().catch(err => console.warn('Post-login sync partial failure:', err));
+        return user as AppUser;
+      }
+      return null;
     } catch (err) {
       console.error('Login failed:', err);
       return null;

@@ -216,20 +216,24 @@ export default function App() {
   const currentUserNgo = user?.ngoId ? dataService.getNGOs().find(n => n.id === user.ngoId) : undefined;
 
   const performLogin = async (targetIdentifier: string, targetPass: string) => {
-    const identifier = targetIdentifier.trim().toLowerCase();
+    const identifier = targetIdentifier.trim();
     const pass = targetPass.trim();
 
     try {
+      console.log('[App] Attempting login for:', identifier);
       const loggedInUser = await dataService.login(identifier, pass);
+      console.log('[App] Login result:', loggedInUser);
       
-      if (loggedInUser) {
+      if (loggedInUser && loggedInUser.id) {
+        console.log('Login success, user role:', loggedInUser.role);
         setUser(loggedInUser);
         refreshData(loggedInUser);
       } else {
-        alert(language === 'ur' ? 'غلط ای میل یا پاس ورڈ!' : 'Invalid Credentials!');
+        console.error('Login failed: invalid response structure or null');
+        showNotification(language === 'ur' ? 'غلط ای میل یا پاس ورڈ!' : 'Invalid Credentials! Please check email/password.', 'error');
       }
     } catch (err) {
-      alert('Login failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      showNotification('Login failed: ' + (err instanceof Error ? err.message : 'Unknown error'), 'error');
     }
   };
 
