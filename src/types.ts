@@ -152,6 +152,7 @@ export enum NotificationType {
   NEW_FEATURE = 'New Feature',
   EMERGENCY = 'Emergency',
   MAINTENANCE = 'Maintenance',
+  REMINDER = 'Reminder',
 }
 
 export enum NotificationAudience {

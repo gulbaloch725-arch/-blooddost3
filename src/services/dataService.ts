@@ -12,6 +12,7 @@ const STORAGE_KEYS = {
   REQUESTS: 'bd_requests',
   NGOS: 'bd_ngos',
   CURRENT_USER: 'bd_current_session',
+  AUTH_TOKEN: 'bd_auth_token',
   INVENTORY: 'bd_inventory',
   SUBSCRIPTIONS: 'bd_subscriptions',
   PATIENTS: 'bd_patients',
@@ -176,6 +177,31 @@ const MOCK_SUBSCRIPTIONS: UserSubscription[] = [
 ];
 
 class DataService {
+  private apiBase = '/api';
+
+  private async apiFetch(endpoint: string, options: RequestInit = {}) {
+    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...((options.headers as Record<string, string>) || {}),
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${this.apiBase}${endpoint}`, {
+      ...options,
+      credentials: 'include',
+      headers,
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(error.error || 'API request failed');
+    }
+    return res.json();
+  }
+
   private get<T>(key: string): T[] {
     const data = localStorage.getItem(key);
     return data ? JSON.parse(data) : [];
@@ -185,75 +211,61 @@ class DataService {
     localStorage.setItem(key, JSON.stringify(data));
   }
 
-  getSystemLogo(): string | null {
-    return localStorage.getItem(STORAGE_KEYS.SYSTEM_LOGO);
-  }
+  async syncWithServer() {
+    try {
+      const currentUser = this.getCurrentUser();
+      if (!currentUser) return;
 
-  setSystemLogo(logo: string | null): void {
-    if (logo) {
-      localStorage.setItem(STORAGE_KEYS.SYSTEM_LOGO, logo);
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.SYSTEM_LOGO);
+      console.log('🔄 Syncing with server...');
+      // Prefetch all data in parallel
+      const [donors, requests, ngos, inventory, patients, suggestions, systemLogo, notifications, records] = await Promise.all([
+        this.apiFetch('/donors'),
+        this.apiFetch('/requests'),
+        this.apiFetch('/ngos'),
+        this.apiFetch('/inventory'),
+        this.apiFetch('/patients'),
+        this.apiFetch('/suggestions'),
+        this.apiFetch('/system/logo'),
+        this.apiFetch('/notifications'),
+        this.apiFetch('/donation-records')
+      ]);
+
+      this.set(STORAGE_KEYS.DONORS, donors);
+      this.set(STORAGE_KEYS.REQUESTS, requests);
+      this.set(STORAGE_KEYS.NGOS, ngos);
+      this.set(STORAGE_KEYS.INVENTORY, inventory);
+      this.set(STORAGE_KEYS.PATIENTS, patients);
+      this.set(STORAGE_KEYS.NOTIFICATIONS, notifications);
+      this.set(STORAGE_KEYS.RECORDS, records);
+      localStorage.setItem(STORAGE_KEYS.SUGGESTIONS, JSON.stringify(suggestions));
+      if (systemLogo && systemLogo.logo) {
+        localStorage.setItem(STORAGE_KEYS.SYSTEM_LOGO, systemLogo.logo);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.SYSTEM_LOGO);
+      }
+      
+      console.log('✅ Synchronized with server');
+    } catch (err: any) {
+      if (err?.message === 'Unauthorized' || err?.message === 'Invalid token') {
+        console.warn('⚠️ Sync unauthorized: User session may have expired.');
+        this.logout(); // Clear local session if server rejected the token
+      } else {
+        console.error('❌ Sync failed:', err.message || err);
+      }
     }
   }
 
   private cleanupSeedData() {
-    const keys = Object.values(STORAGE_KEYS);
-    keys.forEach(key => {
-      const data = this.get<any>(key);
-      if (Array.isArray(data)) {
-        const cleanData = data.filter(item => {
-          // 1. Check for the new explicit seed flag
-          if (item.isSeed === true) {
-            // Keep ONLY the master admin if it's marked as seed (to ensure it persists)
-            if (key === STORAGE_KEYS.USERS && item.role === UserRole.SUPER_ADMIN && item.email === 'admin@admin.com') return true;
-            return false;
-          }
-
-          // 2. Check for "Old style" seed IDs to purge demo clutter
-          const id = item.id || '';
-          const userId = item.userId || '';
-          
-          const isOldSeedId = (i: string) => {
-            return i === 'ngo1' || i === 'ngo2' || i === 'hosp-sibi-1' || 
-                   i === 'u1' || i === 'u2' || i === 'h1' || i === 'admin' ||
-                   i === 'd1' || i === 'd2' || i === 'd3' || i === 'd4' ||
-                   i === 'p1' || i === 'p2' || i === 'r1' || i === 'i1' || i === 'i2' ||
-                   i.startsWith('ngo-') || // Catches ngo-sibi-1, etc.
-                   i.startsWith('u-ngo-') || 
-                   i.startsWith('u-donor-') || 
-                   i.startsWith('d-ngo-') || 
-                   i.startsWith('p-ngo-') || 
-                   i.startsWith('inv-ngo-');
-          };
-
-          if (isOldSeedId(id)) {
-            // Special case: preserve the master admin even if it has an old ID
-            if (key === STORAGE_KEYS.USERS && item.role === UserRole.SUPER_ADMIN && item.email === 'admin@admin.com') return true;
-            return false;
-          }
-
-          if (userId && isOldSeedId(userId)) return false;
-
-          // 3. Keep everything else (assumed to be manually created by admin)
-          return true;
-        });
-
-        // Tag the remaining non-seed data if missing
-        const taggedData = cleanData.map(item => ({
-          ...item,
-          isSeed: item.isSeed ?? false,
-          createdBy: item.createdBy ?? 'super_admin'
-        }));
-
-        this.set(key, taggedData);
-      }
-    });
-
-    localStorage.setItem('bd_cleanup_performed', 'true');
+    // Deprecated in favor of server-side data, but kept as stub to prevent errors
+    console.log('Cleanup seed data skipped');
   }
 
-  init() {
+  private seedData() {
+    // Deprecated in favor of server-side data, but kept as stub to prevent errors
+    console.log('Seed data skipped');
+  }
+
+  async init() {
     // Initialize Location Hierarchy - Always update for consistency
     localStorage.setItem(STORAGE_KEYS.LOCATION_DATA, JSON.stringify(PAKISTAN_LOCATIONS));
 
@@ -267,26 +279,35 @@ class DataService {
       this.cleanupSeedData();
     }
 
-    // Ensure Super Admin exists at minimum
-    const users = this.get<AppUser>(STORAGE_KEYS.USERS);
-    const superAdmin = users.find(u => u.role === UserRole.SUPER_ADMIN);
-    if (!superAdmin) {
-      const defaultAdmin: AppUser = {
-        id: 'admin',
-        name: 'سپر ایڈمن (Super Admin)',
-        email: 'admin@admin.com',
-        role: UserRole.SUPER_ADMIN,
-        password: 'admin123',
-        isSeed: false, // Mark as non-seed now that it's the primary production account
-        createdBy: 'system'
-      };
-      this.set(STORAGE_KEYS.USERS, [defaultAdmin, ...users]);
+    // Attempt to verify session with server
+    try {
+      if (this.getCurrentUser()) {
+        const me = await this.apiFetch('/users/me');
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(me));
+        await this.syncWithServer();
+      }
+    } catch (err: any) {
+      if (err?.message === 'Unauthorized' || err?.message === 'Invalid token') {
+        console.warn('Session expired, logging out locally');
+      } else {
+        console.error('Session verification failed:', err.message || err);
+      }
+      this.logout();
     }
   }
 
-  private seedData() {
-    // This method is now effectively deprecated or can be used for "Fill Demo Data" button
-    console.log('Seed data skipped in production-ready mode.');
+  getSystemLogo(): string | null {
+    return localStorage.getItem(STORAGE_KEYS.SYSTEM_LOGO);
+  }
+
+  async setSystemLogo(logo: string | null): Promise<void> {
+    if (logo) {
+      localStorage.setItem(STORAGE_KEYS.SYSTEM_LOGO, logo);
+      await this.apiFetch('/system/logo', { method: 'POST', body: JSON.stringify({ logo }) });
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.SYSTEM_LOGO);
+      await this.apiFetch('/system/logo', { method: 'POST', body: JSON.stringify({ logo: null }) });
+    }
   }
 
   getDonors(viewer?: AppUser): DonorProfile[] {
@@ -385,7 +406,7 @@ class DataService {
     return all.filter(item => item.ngoId === ngoId);
   }
 
-  addInventory(item: Omit<InventoryItem, 'id'>): InventoryItem {
+  async addInventory(item: Omit<InventoryItem, 'id'>): Promise<InventoryItem> {
     const current = this.getCurrentUser();
     const newItem: InventoryItem = {
       ...item,
@@ -395,6 +416,13 @@ class DataService {
     };
     const inv = this.get<InventoryItem>(STORAGE_KEYS.INVENTORY);
     this.set(STORAGE_KEYS.INVENTORY, [newItem, ...inv]);
+
+    try {
+      await this.apiFetch('/inventory', { method: 'POST', body: JSON.stringify(newItem) });
+    } catch (err) {
+      console.error('Server sync failed for inventory:', err);
+    }
+
     return newItem;
   }
 
@@ -409,7 +437,7 @@ class DataService {
     return [];
   }
 
-  addNGO(ngoData: Omit<NGO, 'id'> & { email?: string; password?: string }): NGO {
+  async addNGO(ngoData: Omit<NGO, 'id'> & { email?: string; password?: string }): Promise<NGO> {
     const { email, password, ...rest } = ngoData;
     const current = this.getCurrentUser();
     const newNGO: NGO = {
@@ -438,6 +466,14 @@ class DataService {
     const users = this.get<AppUser>(STORAGE_KEYS.USERS);
     this.set(STORAGE_KEYS.USERS, [newUser, ...users]);
 
+    // Push to server
+    try {
+      await this.apiFetch('/ngos', { method: 'POST', body: JSON.stringify(newNGO) });
+      await this.apiFetch('/users', { method: 'POST', body: JSON.stringify(newUser) });
+    } catch (err) {
+      console.error('Server sync failed for new NGO:', err);
+    }
+
     // Automatically create an active trial subscription for this NGO
     this.updateSubscription(newUser.id, {
       tier: SubscriptionTier.SILVER,
@@ -448,7 +484,7 @@ class DataService {
     return newNGO;
   }
 
-  addHospital(hospitalData: { name: string, email: string, phone: string, address: string, city: string, password?: string }): AppUser {
+  async addHospital(hospitalData: { name: string, email: string, phone: string, address: string, city: string, password?: string }): Promise<AppUser> {
     const newUser: AppUser = {
       id: 'h-' + Math.random().toString(36).substr(2, 5),
       name: hospitalData.name,
@@ -460,10 +496,17 @@ class DataService {
     };
     const users = this.get<AppUser>(STORAGE_KEYS.USERS);
     this.set(STORAGE_KEYS.USERS, [newUser, ...users]);
+    
+    try {
+      await this.apiFetch('/users', { method: 'POST', body: JSON.stringify(newUser) });
+    } catch (err) {
+      console.error('Server sync failed for new hospital user:', err);
+    }
+
     return newUser;
   }
 
-  addDonor(donorData: Omit<DonorProfile, 'id'>): DonorProfile {
+  async addDonor(donorData: Omit<DonorProfile, 'id'>): Promise<DonorProfile> {
     const donors = this.get<DonorProfile>(STORAGE_KEYS.DONORS);
     const ngos = this.get<NGO>(STORAGE_KEYS.NGOS);
     const current = this.getCurrentUser();
@@ -496,6 +539,13 @@ class DataService {
       createdBy: current?.id || 'system'
     };
     this.set(STORAGE_KEYS.DONORS, [newDonor, ...donors]);
+
+    // Push to server
+    try {
+      await this.apiFetch('/donors', { method: 'POST', body: JSON.stringify(newDonor) });
+    } catch (err) {
+      console.error('Server sync failed for new donor:', err);
+    }
 
     // Record Sync Logic: If a real user is attached (standalone registration)
     // look for ANY records associated with this phone number from other NGO-managed profiles
@@ -542,7 +592,7 @@ class DataService {
     return finalDonors.find(d => d.id === newDonor.id) || newDonor;
   }
 
-  updateUser(id: string, updates: Partial<AppUser>): void {
+  async updateUser(id: string, updates: Partial<AppUser>): Promise<void> {
     const users = this.get<AppUser>(STORAGE_KEYS.USERS);
     const index = users.findIndex(u => u.id === id);
     if (index !== -1) {
@@ -553,6 +603,15 @@ class DataService {
       const current = this.getCurrentUser();
       if (current && current.id === id) {
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify({ ...current, ...updates }));
+      }
+
+      try {
+        await this.apiFetch(`/users/${id}`, { 
+          method: 'PATCH', 
+          body: JSON.stringify(updates) 
+        });
+      } catch (err) {
+        console.error('Server sync failed for user update:', err);
       }
     }
   }
@@ -632,8 +691,8 @@ class DataService {
     this.set(STORAGE_KEYS.REQUESTS, requests.filter(r => r.ngoId !== id));
   }
 
-  exportDonorsToCSV(viewerEmail: string): void {
-    const user = this.login(viewerEmail);
+  async exportDonorsToCSV(viewerEmail: string): Promise<void> {
+    const user = await this.login(viewerEmail);
     if (!user) return;
     const donors = this.getDonors(user);
     
@@ -659,7 +718,7 @@ class DataService {
     document.body.removeChild(a);
   }
 
-  addRequest(request: Omit<BloodRequest, 'id' | 'createdAt'>): BloodRequest {
+  async addRequest(request: Omit<BloodRequest, 'id' | 'createdAt'>): Promise<BloodRequest> {
     const current = this.getCurrentUser();
     const newRequest: BloodRequest = {
       ...request,
@@ -670,15 +729,31 @@ class DataService {
     };
     const requests = this.get<BloodRequest>(STORAGE_KEYS.REQUESTS);
     this.set(STORAGE_KEYS.REQUESTS, [newRequest, ...requests]);
+
+    try {
+      await this.apiFetch('/requests', { method: 'POST', body: JSON.stringify(newRequest) });
+    } catch (err) {
+      console.error('Server sync failed for request:', err);
+    }
+
     return newRequest;
   }
 
-  updateDonor(id: string, updates: Partial<DonorProfile>): void {
+  async updateDonor(id: string, updates: Partial<DonorProfile>): Promise<void> {
     const donors = this.get<DonorProfile>(STORAGE_KEYS.DONORS);
     const index = donors.findIndex(d => d.id === id);
     if (index !== -1) {
       donors[index] = { ...donors[index], ...updates };
       this.set(STORAGE_KEYS.DONORS, donors);
+
+      try {
+        await this.apiFetch(`/donors/${id}`, { 
+          method: 'PATCH', 
+          body: JSON.stringify(updates) 
+        });
+      } catch (err) {
+        console.error('Server sync failed for donor update:', err);
+      }
     }
   }
 
@@ -698,7 +773,7 @@ class DataService {
     return [];
   }
 
-  addPatient(patientData: Omit<ThalassemiaPatient, 'id'>): ThalassemiaPatient {
+  async addPatient(patientData: Omit<ThalassemiaPatient, 'id'>): Promise<ThalassemiaPatient> {
     const current = this.getCurrentUser();
     const newItem: ThalassemiaPatient = {
       ...patientData,
@@ -708,27 +783,32 @@ class DataService {
     };
     const patients = this.get<ThalassemiaPatient>(STORAGE_KEYS.PATIENTS);
     this.set(STORAGE_KEYS.PATIENTS, [newItem, ...patients]);
+
+    try {
+      await this.apiFetch('/patients', { method: 'POST', body: JSON.stringify(newItem) });
+    } catch (err) {
+      console.error('Server sync failed for patient:', err);
+    }
+
     return newItem;
   }
 
-  login(identifier: string, password?: string): AppUser | null {
-    const users = this.get<AppUser>(STORAGE_KEYS.USERS);
-    // Support login via email or phone
-    const user = users.find(u => 
-      (u.email && u.email.toLowerCase() === identifier.toLowerCase()) || 
-      (u.phone === identifier)
-    );
-    
-    if (user) {
-      // In this demo, if password is provided, we MUST check it.
-      // If no password is provided but user HAS a password, we should probably fail unless it's a legacy call
-      if (password && user.password && user.password !== password) {
-        return null;
-      }
+  async login(identifier: string, password?: string): Promise<AppUser | null> {
+    try {
+      const response = await this.apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ identifier, password })
+      });
+      
+      const { token, ...user } = response;
+      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+      await this.syncWithServer();
       return user;
+    } catch (err) {
+      console.error('Login failed:', err);
+      return null;
     }
-    return null;
   }
 
   getCurrentUser(): AppUser | null {
@@ -736,11 +816,17 @@ class DataService {
     return user ? JSON.parse(user) : null;
   }
 
-  logout() {
+  async logout() {
+    try {
+      await this.apiFetch('/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.warn('Server logout failed');
+    }
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
   }
 
-  submitSubscription(userId: string, tier: SubscriptionTier, proof: string): UserSubscription {
+  async submitSubscription(userId: string, tier: SubscriptionTier, proof: string): Promise<UserSubscription> {
     const subscription: UserSubscription = {
       userId,
       tier,
@@ -750,6 +836,13 @@ class DataService {
     };
     const subs = this.get<UserSubscription>(STORAGE_KEYS.SUBSCRIPTIONS);
     this.set(STORAGE_KEYS.SUBSCRIPTIONS, [subscription, ...subs]);
+
+    try {
+      await this.apiFetch('/subscriptions', { method: 'POST', body: JSON.stringify(subscription) });
+    } catch (err) {
+      console.error('Server sync failed for subscription:', err);
+    }
+
     return subscription;
   }
 
@@ -806,7 +899,7 @@ class DataService {
     return this.getUsers().find(u => u.phone === phone) || null;
   }
 
-  recordDonation(record: Omit<DonationRecord, 'id' | 'date'>): DonationRecord {
+  async recordDonation(record: Omit<DonationRecord, 'id' | 'date'>): Promise<DonationRecord> {
     const current = this.getCurrentUser();
     const newRecord: DonationRecord = {
       ...record,
@@ -818,6 +911,12 @@ class DataService {
 
     const records = this.get<DonationRecord>(STORAGE_KEYS.RECORDS);
     this.set(STORAGE_KEYS.RECORDS, [newRecord, ...records]);
+
+    try {
+      await this.apiFetch('/donation-records', { method: 'POST', body: JSON.stringify(newRecord) });
+    } catch (err) {
+      console.error('Server sync failed for donation record:', err);
+    }
 
     // Learn from the new entry
     this.updateSuggestions(record.hospitalName, record.city);
@@ -989,7 +1088,16 @@ class DataService {
     return visible.filter(n => {
       if (n.audience === NotificationAudience.ALL) return true;
       if (n.audience === NotificationAudience.DONORS && viewer.role === UserRole.DONOR) return true;
-      if (n.audience === NotificationAudience.NGOS && (viewer.role === UserRole.NGO_ADMIN || viewer.role === UserRole.HOSPITAL)) return true;
+      if (n.audience === NotificationAudience.NGOS) {
+        if (viewer.role === UserRole.NGO_ADMIN || viewer.role === UserRole.HOSPITAL) {
+          // If a targetValue is specified, it must match the viewer's NGO ID
+          if (n.targetValue) {
+            return n.targetValue === viewer.ngoId;
+          }
+          return true;
+        }
+        return false;
+      }
       
       if (n.audience === NotificationAudience.CITY) {
         // We need to check the user's city. For NGO admins, we check their NGO city.
@@ -1011,7 +1119,7 @@ class DataService {
     });
   }
 
-  createNotification(notification: Omit<AppNotification, 'id' | 'createdAt'>): AppNotification {
+  async createNotification(notification: Omit<AppNotification, 'id' | 'createdAt'>): Promise<AppNotification> {
     const current = this.getCurrentUser();
     const newNotification: AppNotification = {
       ...notification,
@@ -1022,25 +1130,66 @@ class DataService {
     };
     const notifications = this.get<AppNotification>(STORAGE_KEYS.NOTIFICATIONS);
     this.set(STORAGE_KEYS.NOTIFICATIONS, [newNotification, ...notifications]);
+    
+    try {
+      await this.apiFetch('/notifications', { method: 'POST', body: JSON.stringify(newNotification) });
+    } catch (err) {
+      console.error('Server sync failed for notification:', err);
+    }
+    
     return newNotification;
   }
 
-  updateNotification(id: string, updates: Partial<AppNotification>): void {
+  async setDonorReminder(donorId: string, availableDate: string): Promise<AppNotification> {
+    const donor = this.getDonors().find(d => d.id === donorId);
+    const current = this.getCurrentUser();
+    
+    if (!donor || !current) {
+      throw new Error("Unable to set reminder: Donor or user context not found");
+    }
+
+    return this.createNotification({
+      title: `Donor Reminder: ${donor.bloodGroup}`,
+      message: `${donor.name} (${donor.bloodGroup}) is now eligible for donation again.`,
+      type: NotificationType.REMINDER,
+      audience: NotificationAudience.NGOS,
+      targetValue: donor.addedByNgoId,
+      scheduledFor: availableDate,
+      authorId: current.id
+    });
+  }
+
+  async updateNotification(id: string, updates: Partial<AppNotification>): Promise<void> {
     const notifications = this.get<AppNotification>(STORAGE_KEYS.NOTIFICATIONS);
     const index = notifications.findIndex(n => n.id === id);
     if (index !== -1) {
       notifications[index] = { ...notifications[index], ...updates };
       this.set(STORAGE_KEYS.NOTIFICATIONS, notifications);
+      
+      try {
+        await this.apiFetch(`/notifications/${id}`, { 
+          method: 'PATCH', 
+          body: JSON.stringify(updates) 
+        });
+      } catch (err) {
+        console.error('Server sync failed for notification update:', err);
+      }
     }
   }
 
-  deleteNotification(id: string): void {
+  async deleteNotification(id: string): Promise<void> {
     const notifications = this.get<AppNotification>(STORAGE_KEYS.NOTIFICATIONS);
     this.set(STORAGE_KEYS.NOTIFICATIONS, notifications.filter(n => n.id !== id));
     
     // Cleanup read status
     const statuses = this.get<NotificationReadStatus>(STORAGE_KEYS.NOTIFICATION_READ_STATUS);
     this.set(STORAGE_KEYS.NOTIFICATION_READ_STATUS, statuses.filter(s => s.notificationId !== id));
+
+    try {
+      await this.apiFetch(`/notifications/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Server sync failed for notification deletion:', err);
+    }
   }
 
   markAsRead(userId: string, notificationId: string): void {

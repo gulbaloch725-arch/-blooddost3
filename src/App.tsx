@@ -159,20 +159,24 @@ export default function App() {
   const PAKISTAN_LOCATIONS = dataService.getLocationData();
 
   useEffect(() => {
-    dataService.init();
-    const currentUser = dataService.getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-      refreshData(currentUser);
-      
-      // Check for Admin Alerts
-      if (currentUser.role === UserRole.NGO_ADMIN) {
-        const alert = dataService.consumeAlert(currentUser.ngoId!);
-        if (alert === 'settings_updated') {
-          showNotification(t.settingsUpdatedByAdmin, 'info');
+    const initApp = async () => {
+      await dataService.init();
+      const currentUser = dataService.getCurrentUser();
+      if (currentUser) {
+        setUser(currentUser);
+        refreshData(currentUser);
+        
+        // Check for Admin Alerts
+        if (currentUser.role === UserRole.NGO_ADMIN) {
+          const alert = dataService.consumeAlert(currentUser.ngoId!);
+          if (alert === 'settings_updated') {
+            showNotification(t.settingsUpdatedByAdmin, 'info');
+          }
         }
       }
-    }
+    };
+
+    initApp();
 
     const handleOnline = () => {
       setIsOnline(true);
@@ -211,17 +215,21 @@ export default function App() {
 
   const currentUserNgo = user?.ngoId ? dataService.getNGOs().find(n => n.id === user.ngoId) : undefined;
 
-  const performLogin = (targetIdentifier: string, targetPass: string) => {
+  const performLogin = async (targetIdentifier: string, targetPass: string) => {
     const identifier = targetIdentifier.trim().toLowerCase();
     const pass = targetPass.trim();
 
-    const loggedInUser = dataService.login(identifier, pass);
-    
-    if (loggedInUser) {
-      setUser(loggedInUser);
-      refreshData(loggedInUser);
-    } else {
-      alert(language === 'ur' ? 'غلط ای میل یا پاس ورڈ!' : 'Invalid Credentials!');
+    try {
+      const loggedInUser = await dataService.login(identifier, pass);
+      
+      if (loggedInUser) {
+        setUser(loggedInUser);
+        refreshData(loggedInUser);
+      } else {
+        alert(language === 'ur' ? 'غلط ای میل یا پاس ورڈ!' : 'Invalid Credentials!');
+      }
+    } catch (err) {
+      alert('Login failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   };
 
@@ -230,8 +238,8 @@ export default function App() {
     performLogin(authEmail, password);
   };
 
-  const handleLogout = () => {
-    dataService.logout();
+  const handleLogout = async () => {
+    await dataService.logout();
     setUser(null);
     setAuthEmail('');
     setPassword('');
@@ -275,13 +283,13 @@ export default function App() {
 
   const dashboardCards = getDashboardCards();
 
-  const handleCreateRequest = (req: Omit<BloodRequest, 'id' | 'createdAt' | 'status'>) => {
-    dataService.addRequest({ ...req, status: 'Pending' });
+  const handleCreateRequest = async (req: Omit<BloodRequest, 'id' | 'createdAt' | 'status'>) => {
+    await dataService.addRequest({ ...req, status: 'Pending' });
     setRequests(dataService.getRequests(user || undefined));
     setIsRequestModalOpen(false);
   };
 
-  const handleRegisterDonor = (donor: Omit<DonorProfile, 'id'>) => {
+  const handleRegisterDonor = async (donor: Omit<DonorProfile, 'id'>) => {
     try {
       let finalUserId = donor.userId;
 
@@ -305,7 +313,7 @@ export default function App() {
         finalUserId = newUser.id;
       }
 
-      const newDonor = dataService.addDonor({
+      const newDonor = await dataService.addDonor({
         ...donor,
         userId: finalUserId,
         addedByNgoId: user?.ngoId
@@ -313,7 +321,7 @@ export default function App() {
 
       if (!user) {
         // Auto login after registration
-        dataService.login(donor.phone);
+        await dataService.login(donor.phone);
         const loggedInUser = dataService.getCurrentUser();
         if (loggedInUser) {
           setUser(loggedInUser);
@@ -337,15 +345,15 @@ export default function App() {
 
   const [showShareCard, setShowShareCard] = useState<AppUser | null>(null);
 
-  const handleRegisterNGO = (ngo: Omit<NGO, 'id'>) => {
+  const handleRegisterNGO = async (ngo: Omit<NGO, 'id'>) => {
     try {
-      const newNgo = dataService.addNGO(ngo);
+      const newNgo = await dataService.addNGO(ngo);
       const users = dataService.getUsers();
       const newUser = users.find(u => u.ngoId === newNgo.id);
       
       if (newUser) {
         // Auto login for NGO after registration
-        dataService.login(newUser.email);
+        await dataService.login(newUser.email);
         const loggedInUser = dataService.getCurrentUser();
         if (loggedInUser) {
           setUser(loggedInUser);
@@ -363,12 +371,12 @@ export default function App() {
     }
   };
 
-  const handleRegisterHospital = (hospital: { name: string; email: string; phone: string; address: string; city: string }) => {
+  const handleRegisterHospital = async (hospital: { name: string; email: string; phone: string; address: string; city: string }) => {
     try {
-      const hospitalUser = dataService.addHospital(hospital);
+      const hospitalUser = await dataService.addHospital(hospital);
       
       // Auto login after registration
-      dataService.login(hospitalUser.email);
+      await dataService.login(hospitalUser.email);
       const loggedInUser = dataService.getCurrentUser();
       if (loggedInUser) {
         setUser(loggedInUser);

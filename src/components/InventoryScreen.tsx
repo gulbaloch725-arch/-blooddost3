@@ -24,9 +24,9 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({ ngoId, languag
     setInventory(dataService.getInventory(ngoId));
   }, [ngoId]);
 
-  const handleAddStock = (e: React.FormEvent) => {
+  const handleAddStock = async (e: React.FormEvent) => {
     e.preventDefault();
-    dataService.addInventory({
+    await dataService.addInventory({
       ngoId,
       ...newStock
     });

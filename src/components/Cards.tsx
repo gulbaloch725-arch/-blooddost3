@@ -1,9 +1,10 @@
 import React from 'react';
-import { Phone, MessageSquare, MapPin, Calendar, CheckCircle2, XCircle, Clock, Info, ShieldAlert, Timer, Droplet, Building2 } from 'lucide-react';
-import { DonorProfile, BloodRequest, UserRole, NGO } from '../types';
+import { Phone, MessageSquare, MapPin, Calendar, CheckCircle2, XCircle, Clock, Info, ShieldAlert, Timer, Droplet, Building2, Bell, BellRing } from 'lucide-react';
+import { DonorProfile, BloodRequest, UserRole, NGO, NotificationType } from '../types';
 import { motion } from 'motion/react';
 import { getRemainingDays, isEligible, isNearlyEligible } from '../lib/eligibility';
 import { Language, translations } from '../translations';
+import { dataService } from '../services/dataService';
 
 const getWhatsAppUrl = (phone: string, message?: string) => {
   let cleaned = phone.replace(/[^0-9]/g, '');
@@ -50,6 +51,41 @@ export const DonorCard: React.FC<DonorCardProps> = ({
     : eligible ? t.eligible : remainingTextEn;
 
   const [showConfirm, setShowConfirm] = React.useState<'call' | 'whatsapp' | null>(null);
+  const [isReminderSetting, setIsReminderSetting] = React.useState(false);
+  const [hasReminder, setHasReminder] = React.useState(false);
+
+  React.useEffect(() => {
+    if (nearlyEligible) {
+      const user = dataService.getCurrentUser();
+      if (user) {
+        const notifs = dataService.getNotifications(user);
+        const exists = notifs.some(n => 
+          n.type === NotificationType.REMINDER && 
+          n.message.includes(donor.name) &&
+          n.authorId === user.id
+        );
+        setHasReminder(exists);
+      }
+    }
+  }, [nearlyEligible, donor.name]);
+
+  const handleSetReminder = async () => {
+    if (hasReminder || isReminderSetting) return;
+    
+    setIsReminderSetting(true);
+    try {
+      // Calculate next available date
+      const lastDate = new Date(donor.lastDonated);
+      const availableDate = new Date(lastDate.getTime() + coolOffDays * 24 * 60 * 60 * 1000).toISOString();
+      
+      await dataService.setDonorReminder(donor.id, availableDate);
+      setHasReminder(true);
+    } catch (err) {
+      console.error("Failed to set reminder:", err);
+    } finally {
+      setIsReminderSetting(false);
+    }
+  };
 
   const handleCall = () => {
     window.location.href = `tel:${donor.phone}`;
@@ -130,6 +166,23 @@ export const DonorCard: React.FC<DonorCardProps> = ({
           </span>
         </button>
       </div>
+
+      {nearlyEligible && viewerRole === UserRole.NGO_ADMIN && (
+        <button 
+          onClick={handleSetReminder}
+          disabled={hasReminder || isReminderSetting}
+          className={`w-full mt-2 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black shadow-lg transition-all active:scale-95 ${
+            hasReminder 
+              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 cursor-default' 
+              : 'bg-white border border-slate-200 text-slate-800 hover:bg-slate-50 shadow-slate-200/50'
+          }`}
+        >
+          {hasReminder ? <BellRing className="w-4 h-4" /> : <Bell className={`w-4 h-4 ${isReminderSetting ? 'animate-bounce' : ''}`} />}
+          <span className={language === 'ur' ? 'urdu' : ''}>
+            {hasReminder ? t.reminderSet : (isReminderSetting ? '...' : t.remindMe)}
+          </span>
+        </button>
+      )}
 
       {eligible && viewerRole === UserRole.NGO_ADMIN && (
         <button 

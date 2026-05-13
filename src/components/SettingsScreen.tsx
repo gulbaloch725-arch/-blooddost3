@@ -252,7 +252,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       accept="image/*"
                       id="global-logo-upload"
                       className="hidden"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
                           if (file.size > 2 * 1024 * 1024) {
@@ -260,8 +260,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                             return;
                           }
                           const reader = new FileReader();
-                          reader.onloadend = () => {
-                            dataService.setSystemLogo(reader.result as string);
+                          reader.onloadend = async () => {
+                            await dataService.setSystemLogo(reader.result as string);
                             showNotification('System logo updated successfully!', 'success');
                             window.location.reload();
                           };
@@ -278,9 +278,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </label>
                     {dataService.getSystemLogo() && (
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           if (confirm('Erase system logo and revert to default?')) {
-                            dataService.setSystemLogo(null);
+                            await dataService.setSystemLogo(null);
                             window.location.reload();
                           }
                         }}

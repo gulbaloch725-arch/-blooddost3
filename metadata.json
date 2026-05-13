@@ -5,8 +5,8 @@
     "geolocation"
   ],
   "majorCapabilities": [
-    "Firebase Authentication",
-    "Firestore Database",
+    "Secure JWT Authentication",
+    "Persistent SQLite Database",
     "Real-time Blood Requests",
     "Donor Search"
   ]

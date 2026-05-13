@@ -37,7 +37,7 @@ export default function ThalassemiaForm({ onClose, onSuccess, language, user }: 
     return date.toLocaleDateString(language === 'ur' ? 'ur-PK' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
@@ -46,7 +46,7 @@ export default function ThalassemiaForm({ onClose, onSuccess, language, user }: 
         throw new Error("Only NGOs can register patients");
       }
 
-      dataService.addPatient({
+      await dataService.addPatient({
         name: formData.name,
         fatherName: formData.fatherName,
         age: parseInt(formData.age),
